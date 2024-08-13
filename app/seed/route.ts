@@ -1,10 +1,9 @@
-import bcrypt from 'bcrypt';
-import { db } from '@vercel/postgres';
-import { invoices, customers, revenue, users } from '../lib/placeholder-data';
+import bcrypt from "bcrypt";
+import { db } from "@vercel/postgres";
+import { invoices, customers, revenue, users } from "../lib/placeholder-data";
+import { NextResponse } from "next/server";
 
-const client = await db.connect();
-
-async function seedUsers() {
+async function seedUsers(client: any) {
   await client.sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
   await client.sql`
     CREATE TABLE IF NOT EXISTS users (
@@ -23,13 +22,13 @@ async function seedUsers() {
         VALUES (${user.id}, ${user.name}, ${user.email}, ${hashedPassword})
         ON CONFLICT (id) DO NOTHING;
       `;
-    }),
+    })
   );
 
   return insertedUsers;
 }
 
-async function seedInvoices() {
+async function seedInvoices(client: any) {
   await client.sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await client.sql`
@@ -48,14 +47,14 @@ async function seedInvoices() {
         INSERT INTO invoices (customer_id, amount, status, date)
         VALUES (${invoice.customer_id}, ${invoice.amount}, ${invoice.status}, ${invoice.date})
         ON CONFLICT (id) DO NOTHING;
-      `,
-    ),
+      `
+    )
   );
 
   return insertedInvoices;
 }
 
-async function seedCustomers() {
+async function seedCustomers(client: any) {
   await client.sql`CREATE EXTENSION IF NOT EXISTS "uuid-ossp"`;
 
   await client.sql`
@@ -73,14 +72,14 @@ async function seedCustomers() {
         INSERT INTO customers (id, name, email, image_url)
         VALUES (${customer.id}, ${customer.name}, ${customer.email}, ${customer.image_url})
         ON CONFLICT (id) DO NOTHING;
-      `,
-    ),
+      `
+    )
   );
 
   return insertedCustomers;
 }
 
-async function seedRevenue() {
+async function seedRevenue(client: any) {
   await client.sql`
     CREATE TABLE IF NOT EXISTS revenue (
       month VARCHAR(4) NOT NULL UNIQUE,
@@ -94,29 +93,30 @@ async function seedRevenue() {
         INSERT INTO revenue (month, revenue)
         VALUES (${rev.month}, ${rev.revenue})
         ON CONFLICT (month) DO NOTHING;
-      `,
-    ),
+      `
+    )
   );
 
   return insertedRevenue;
 }
 
 export async function GET() {
-  return Response.json({
-    message:
-      'Uncomment this file and remove this line. You can delete this file when you are finished.',
-  });
+  const client = await db.connect(); // Mover la conexión dentro de la función GET
+
   try {
     await client.sql`BEGIN`;
-    await seedUsers();
-    await seedCustomers();
-    await seedInvoices();
-    await seedRevenue();
+    await seedUsers(client);
+    await seedCustomers(client);
+    await seedInvoices(client);
+    await seedRevenue(client);
     await client.sql`COMMIT`;
 
-    return Response.json({ message: 'Database seeded successfully' });
+    return NextResponse.json({ message: "Database seeded successfully" });
   } catch (error) {
     await client.sql`ROLLBACK`;
-    return Response.json({ error }, { status: 500 });
+    const errorMessage = (error as Error).message;
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
+  } finally {
+    client.release(); // Asegúrate de liberar la conexión
   }
 }
